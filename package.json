@@ -39,6 +39,7 @@
     "gulp-notify": "^1.5.0",
     "coffeeify": "^0.7.0",
     "franim": "0.0.7",
-    "numberer": "^0.1.1"
+    "numberer": "^0.1.1",
+    "vec2d": "^0.3.0"
   }
 }
