@@ -1,14 +1,14 @@
 draw = 
-  line: (start,end) ->
-    strokeStyle = @strokeStyle
-    @stroke()
-    @beginPath()
-    @strokeStyle = "blue"
-    @moveTo start.x,start.y
-    @lineTo end.x,end.y
-    @stroke()
-    @beginPath()
-    @strokeStyle = strokeStyle
+  line: (start,end,ctx) ->
+    strokeStyle = ctx.strokeStyle
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.strokeStyle = "blue"
+    ctx.moveTo start.x,start.y
+    ctx.lineTo end.x,end.y
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.strokeStyle = strokeStyle
 
   spiral: (num,o,generator) ->
     return if num == 0; 
