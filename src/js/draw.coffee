@@ -1,14 +1,14 @@
 draw = 
-  line: (start,end,ctx) ->
-    strokeStyle = ctx.strokeStyle
-    ctx.stroke()
+  line: (start,end,ctx,color) ->
+    # strokeStyle = ctx.strokeStyle
+    # ctx.stroke()
     ctx.beginPath()
-    ctx.strokeStyle = "blue"
+    ctx.strokeStyle = (color or "blue")
     ctx.moveTo start.x,start.y
     ctx.lineTo end.x,end.y
     ctx.stroke()
-    ctx.beginPath()
-    ctx.strokeStyle = strokeStyle
+    # ctx.beginPath()
+    # ctx.strokeStyle = strokeStyle
 
   spiral: (num,o,generator) ->
     return if num == 0; 

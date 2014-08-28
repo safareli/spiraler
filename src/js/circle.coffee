@@ -12,94 +12,107 @@ class Circle
     @minRadius = 10 if @minRadius < 10
     
     @mass = 1 # @radius * @radius * 2 *Math.PI
-    @neighbors = []
     @drawQuee = []
-    @zeroAccelerationTime = 0
+    @accelerationDuration = 0
+    @accelerationTimeStart = 0
+    @friends = []
+    @requests = []
 
   applyForce: (force) ->
     @acceleration.add(force.scaled(1/@mass))
-  
-  isStopped: ->
-    @neighbors.length > 0
   
   stop: ->
     @acceleration.scale(0)
     @velocity.scale(0)
 
   edgeForce: (max) ->
-    # force= vec 0, 0
-    x = 0
-    y = 0
-    x += 1 if @center.x < @radius
-    y += 1 if @center.y < @radius
-    x -= 1 if @center.x > max.x - @radius
-    y -= 1 if @center.y > max.y - @radius
-    f = vec(x, y)
-    if f.length() > 0
-      # return @velocity.clone().scale(-2)
-      @velocity.clone().reflect(f);
-      # f.normalize().scale(@velocity.length())
-    return f
+    normal = vec 0, 0
+    if @center.x < @radius 
+      normal.x = 1
+    else if @center.x > max.x - @radius
+      normal.x = -1
+    else if @center.y < @radius 
+      normal.y = 1
+    else if @center.y > max.y - @radius
+      normal.y = -1
+    sameDirectionX = (@velocity.x > 0 and normal.x > 0) or (@velocity.x < 0 and normal.x < 0)
+    sameDirectionY = (@velocity.y > 0 and normal.y > 0) or (@velocity.y < 0 and normal.y < 0) 
+    sameDirection = sameDirectionX or sameDirectionY
+    if normal.length() > 0 and ! sameDirection
+      normal.scale(@velocity.scaled(-2).dot(normal))
+    return normal
 
   separateForce: (circles) ->
     force= vec 0, 0
     count = 0
-    neighbor = null
     for circle in circles
       continue if circle == @
       distance = @center.minus(circle.center)
       currentDistance = distance.length()
       minDistance = circle.radius + @radius
-      continue if currentDistance > minDistance
-      acurance = 1
-      isAtEdge = currentDistance <= (minDistance + acurance) and currentDistance > (minDistance - acurance);
-      isNotAccelerated = @acceleration.length() == 0 and  circle.acceleration.length() == 0
-      hasPlaceInNeighbors = circle.neighbors.length < 2 and @neighbors.length < 2
-      isNotNeighbor = @neighbors.indexOf(circle) == -1
-      if isNotNeighbor and isAtEdge and isNotAccelerated and hasPlaceInNeighbors
-        #todo implement @sendNeighborRequest(circle)
-        neighbor = circle
+      if currentDistance > minDistance
         continue
+      acurance = 0.25
+      isAtEdge = currentDistance > (minDistance - acurance);
+      hasNotSendRequest = @requests.indexOf(circle) == -1
+      if isAtEdge and hasNotSendRequest
+        @requests.push(circle)      
+        circle.requests.push(@)
+        continue      
       f = distance.normalize().scale(minDistance/currentDistance)
       @drawQuee.push(draw.line.bind(draw,circle.center,circle.center.plus(f.scaled(circle.radius/2))))
       force.add(f);
       count++
-    if (count == 0 and neighbor!=null)
-      @stick(neighbor)
-      # @neighbors.push(neighbor)
-      # neighbor.neighbors.push(@)
 
     if (count > 0)
       force.scale(1/count)
     force
+  respondToRequests: ()->
+    return if @friends.length == 2
+    circles = @requests.filter(((circle)->
+      isNotAccelerated = circle.acceleration.length() == 0
+      hasPlaceForFreind = circle.friends.length < 2
+      inNotFriend = @friends.indexOf(circle) == -1
+      isNotAccelerated and isNotAccelerated and inNotFriend and hasPlaceForFreind
+    ).bind @).slice(0, 2 - @friends.length)
+    # rejectis dros ganzidva unda moxdes mainc amito sheileba reqvestebshi 
+    # obieqtebi da rejeqtis action ebic iyos da mere moxdes gamodaxeba
+    for circle in circles      
+      @friends.push(circle)
+      @acceleration.scale(0)
+      @velocity.scale(0)
 
-  stick: (circle) ->
-    @neighbors.push(circle)
-    @stop()
-    circle.neighbors.push(@)
-    circle.stop()
+      circle.friends.push(@)
+      circle.acceleration.scale(0)
+      circle.velocity.scale(0)
 
   separate: (circles) ->
-    return if @isStopped()
     @applyForce(@separateForce(circles))
 
   edge: (max) ->
-    return if @isStopped()
     @applyForce(@edgeForce(max))
 
-  update: (time) ->
-    # todo es ro moishalos mainc agrdeleben modraobas arrad a wesit ganolebuli unda iyos energia 
-    # return if @isStopped()
-    if @acceleration.length() == 0 and time - @zeroAccelerationTime > 500
-      @zeroAccelerationTime = time
+  checkLoop: (time) ->
+    if @friends.length != 0 or @requests.length != 0 
+      return
+    
+    if @acceleration.length() == 0
+      @accelerationTimeStart = false
     else
-      if(time > @zeroAccelerationTime + 3000 && @radius > @minRadius*3)
-        @radius -= (time - @zeroAccelerationTime) / 2000;
-      if(time > @zeroAccelerationTime + 6000 && @radius > @minRadius)
-        @radius -= (time - @zeroAccelerationTime) / 2000; 
-      if(time > @zeroAccelerationTime + 6000 && @radius > @minRadius*0.5)
-        @radius -= (time - @zeroAccelerationTime) / 2000;    
+      if @accelerationTimeStart  == false
+        @accelerationTimeStart = time 
+      @accelerationDuration = time - @accelerationTimeStart
+      console.log @accelerationDuration
+      if(@accelerationDuration > 3000 && @radius > @minRadius*3)
+        @radius -= (3000) / 2000;
+      if(@accelerationDuration > 6000 && @radius > @minRadius)
+        @radius -= (6000) / 2000; 
+      if(@accelerationDuration > 9000 && @radius > @minRadius*0.5)
+        @radius -= (9000) / 2000;    
+  
 
+  update: (time) ->
+    return if @friends.length > 0 
     @velocity.add(@acceleration);
     @velocity.boundMax
       x:1
@@ -107,29 +120,33 @@ class Circle
     @center.add(@velocity)
     @acceleration.scale(0);
     @drawQuee.push(draw.line.bind(draw,@center,@center.plus(@velocity.scaled(@radius/2))))
-
+    @requests = []
     return
 
-  draw: (ctx) ->
-    @ctx = ctx;
+  drawCircle: (ctx) ->
     ctx.beginPath()
     ctx.arc @center.x, @center.y, @radius, 0, 2 * Math.PI, false
     ctx.lineWidth = 1
-    if @neighbors.length == 0 
+    if @friends.length == 0
       ctx.strokeStyle = 'red'
-    else if @neighbors.length == 1 
-      ctx.strokeStyle = 'blue'
-    else if @neighbors.length == 2
+    else if @friends.length == 1
       ctx.strokeStyle = 'green'
-    else 
+    else if @friends.length == 2
       ctx.strokeStyle = 'orange'
-    
-    for neighbor in @neighbors
-      draw.line(@center,neighbor.center,ctx)
-    for d in @drawQuee
-      d(ctx)
-    @drawQuee = []
+    else
+      ctx.strokeStyle = 'blue'
     ctx.stroke()
+
+  draw: (ctx) ->
+    @drawCircle(ctx)
+
+    if @friends.length > 0
+      for friend in @friends  
+        draw.line(@center,friend.center,ctx,'silver')
+
+    for d in @drawQuee
+      d(ctx,'red')
+    @drawQuee = []
 
     return
 
