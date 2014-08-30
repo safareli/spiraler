@@ -1,5 +1,18 @@
 vec = require 'vec2d'
 draw = require './draw'
+generateGroup = (circle,nextCircle,group)->
+  circle.friends
+
+  return group
+drawGroup = (group)->
+  start = circle.friends[0].center.minus(circle.center).scale(-1)
+  start.scale(circle.radius / (circle.friends[0].radius + circle.radius))
+  draw.spiral ctx, 
+    start: circle.center.plus start
+    angle: start.angle() + Math.PI
+    direction: false
+    radius: circle.radius
+    circles: Math.random()*5 + 3
 
 class Circle
   constructor: (obj) ->
@@ -17,6 +30,7 @@ class Circle
     @accelerationTimeStart = 0
     @friends = []
     @requests = []
+
 
   applyForce: (force) ->
     @acceleration.add(force.scaled(1/@mass))
@@ -38,7 +52,7 @@ class Circle
     sameDirectionX = (@velocity.x > 0 and normal.x > 0) or (@velocity.x < 0 and normal.x < 0)
     sameDirectionY = (@velocity.y > 0 and normal.y > 0) or (@velocity.y < 0 and normal.y < 0) 
     sameDirection = sameDirectionX or sameDirectionY
-    if normal.length() > 0 and ! sameDirection
+    if normal.length() > 0 and !sameDirection
       normal.scale(@velocity.scaled(-2).dot(normal))
     return normal
 
@@ -50,16 +64,10 @@ class Circle
       distance = @center.minus(circle.center)
       currentDistance = distance.length()
       minDistance = circle.radius + @radius
-      if currentDistance > minDistance
-        continue
-      acurance = 0.25
-      isAtEdge = currentDistance > (minDistance - acurance);
-      hasNotSendRequest = @requests.indexOf(circle) == -1
-      if isAtEdge and hasNotSendRequest
-        @requests.push(circle)      
-        circle.requests.push(@)
-        continue      
+      acurance = 0.75
+      continue if currentDistance >= minDistance - acurance
       f = distance.normalize().scale(minDistance/currentDistance)
+      # f = distance.normalize().scale(@velocity.scaled(-2).dot(distance))#minDistance/currentDistance
       @drawQuee.push(draw.line.bind(draw,circle.center,circle.center.plus(f.scaled(circle.radius/2))))
       force.add(f);
       count++
@@ -67,24 +75,31 @@ class Circle
     if (count > 0)
       force.scale(1/count)
     force
-  respondToRequests: ()->
-    return if @friends.length == 2
-    circles = @requests.filter(((circle)->
-      isNotAccelerated = circle.acceleration.length() == 0
-      hasPlaceForFreind = circle.friends.length < 2
-      inNotFriend = @friends.indexOf(circle) == -1
-      isNotAccelerated and isNotAccelerated and inNotFriend and hasPlaceForFreind
-    ).bind @).slice(0, 2 - @friends.length)
-    # rejectis dros ganzidva unda moxdes mainc amito sheileba reqvestebshi 
-    # obieqtebi da rejeqtis action ebic iyos da mere moxdes gamodaxeba
-    for circle in circles      
-      @friends.push(circle)
-      @acceleration.scale(0)
-      @velocity.scale(0)
 
-      circle.friends.push(@)
-      circle.acceleration.scale(0)
-      circle.velocity.scale(0)
+  connect: (circles)->
+    return if @acceleration.length() > 0
+    for circle in circles
+      continue if circle == @
+      return if @friends.length == 2 
+      distance = @center.minus(circle.center).length()
+      minDistance = circle.radius + @radius
+      acurance = 0.75
+      
+      # isAtEdge = distance < minDistance + acurance and distance >= minDistance - acurance
+      isAtEdge = Math.abs(distance - minDistance) <= acurance
+      hasPlaceForFreind = circle.friends.length < 2
+      isAccelerated = circle.acceleration.length() > 0
+      isInFriends = @friends.indexOf(circle) > -1
+      isStoped = circle.friends.length > 0 or  !isAccelerated
+      if isAtEdge and hasPlaceForFreind and isStoped and !isInFriends
+        @friends.push(circle)
+        @acceleration.scale(0)
+        @velocity.scale(0)
+
+        circle.friends.push(@)
+        circle.acceleration.scale(0)
+        circle.velocity.scale(0)
+
 
   separate: (circles) ->
     @applyForce(@separateForce(circles))
@@ -93,7 +108,7 @@ class Circle
     @applyForce(@edgeForce(max))
 
   checkLoop: (time) ->
-    if @friends.length != 0 or @requests.length != 0 
+    if @friends.length > 0 or @requests.length > 0 
       return
     
     if @acceleration.length() == 0
@@ -102,13 +117,12 @@ class Circle
       if @accelerationTimeStart  == false
         @accelerationTimeStart = time 
       @accelerationDuration = time - @accelerationTimeStart
-      console.log @accelerationDuration
       if(@accelerationDuration > 3000 && @radius > @minRadius*3)
-        @radius -= (3000) / 2000;
+        @radius -= 5;
       if(@accelerationDuration > 6000 && @radius > @minRadius)
-        @radius -= (6000) / 2000; 
+        @radius -= 5;
       if(@accelerationDuration > 9000 && @radius > @minRadius*0.5)
-        @radius -= (9000) / 2000;    
+        @radius -= 5;
   
 
   update: (time) ->
@@ -138,6 +152,11 @@ class Circle
     ctx.stroke()
 
   draw: (ctx) ->
+    # if @friends.length == 1
+    #   drawGroup(generateGroup(@,@friends[0]))
+    # else
+    #   @drawCircle(ctx)
+
     @drawCircle(ctx)
 
     if @friends.length > 0
